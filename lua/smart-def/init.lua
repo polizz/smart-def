@@ -24,10 +24,12 @@ local function goto_definition_in_direction(map_dir, user_config)
     vim.cmd(cmd)
     -- Step 6: Show buffer "B" in the target pane
     vim.api.nvim_set_current_buf(buffer_b)
+    vim.cmd("norm! zz")
   else
     -- Handle new split creation
     vim.cmd(cmd)
     vim.defer_fn(vim.lsp.buf.definition, user_config.delay)
+    vim.defer_fn(function() vim.cmd("norm! zz") end, user_config.delay)
   end
 end
 
