@@ -16,15 +16,19 @@ local function goto_definition_in_direction(map_dir, user_config)
     local buffer_a = vim.api.nvim_get_current_buf()
     -- Step 2: Jump to the LSP definition (opens buffer "B" in the current pane)
     vim.lsp.buf.definition()
-    -- Step 3: Record the new buffer (buffer "B")
-    local buffer_b = vim.api.nvim_get_current_buf()
-    -- Step 4: Move back to buffer "A" in the current pane
-    vim.api.nvim_set_current_buf(buffer_a)
-    -- Step 5: Move to the target pane
-    vim.cmd(cmd)
-    -- Step 6: Show buffer "B" in the target pane
-    vim.api.nvim_set_current_buf(buffer_b)
-    vim.cmd("norm! zz")
+
+    -- defer to lsp has time to navigate to reference
+    vim.defer_fn(function()
+      -- Step 3: Record the new buffer (buffer "B")
+      local buffer_b = vim.api.nvim_get_current_buf()
+      -- Step 4: Move back to buffer "A" in the current pane
+      vim.api.nvim_set_current_buf(buffer_a)
+      -- Step 5: Move to the target pane
+      vim.cmd(cmd)
+      -- Step 6: Show buffer "B" in the target pane
+      vim.api.nvim_set_current_buf(buffer_b)
+      vim.cmd("norm! zz")
+    end, 5)
   else
     -- Handle new split creation
     vim.cmd(cmd)
