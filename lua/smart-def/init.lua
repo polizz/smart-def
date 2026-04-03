@@ -1,42 +1,37 @@
 local config = require("smart-def.config")
 
 local M = {}
-
--- Function to handle definition navigation
-local function goto_definition_in_direction(map_dir, user_config)
+local function goto_definition_in_direction(map_dir)
   local cmd = config.split_commands[map_dir]
   if not cmd then
-    print("Invalid direction. Use h, j, k, l, > or <.")
+    print("Invalid direction.")
     return
   end
 
-  -- Handle existing window navigation differently
-  if map_dir == "use_right" or map_dir == "use_left" then
-    -- Step 1: Store current buffer
-    local buffer_a = vim.api.nvim_get_current_buf()
-    -- Step 2: Jump to the LSP definition (opens buffer "B" in the current pane)
-    vim.lsp.buf.definition()
+  -- 1. Get the definition location WITHOUT jumping immediately
+  -- We use vim.lsp.buf_request to get the raw data from the server
+  local params = vim.lsp.util.make_position_params(0, "utf-8")
+  vim.lsp.buf_request(0, 'textDocument/definition', params, function(err, result)
+    if err or not result or vim.tbl_isempty(result) then
+      print("Definition not found")
+      return
+    end
 
-    -- defer to lsp has time to navigate to reference
-    vim.defer_fn(function()
-      -- Step 3: Record the new buffer (buffer "B")
-      local buffer_b = vim.api.nvim_get_current_buf()
-      -- Step 4: Move back to buffer "A" in the current pane
-      vim.api.nvim_set_current_buf(buffer_a)
-      -- Step 5: Move to the target pane
-      vim.cmd(cmd)
-      -- Step 6: Show buffer "B" in the target pane
-      vim.api.nvim_set_current_buf(buffer_b)
-      vim.cmd("norm! zz")
-    end, 5)
-  else
-    -- Handle new split creation
+    -- The LSP returns a list of locations; we take the first one
+    local location = result[1]
+    if type(location) == "table" then
+      -- Handle case where result is a list of locations { uri, range }
+      location = location[1] or location
+    end
+
     vim.cmd(cmd)
-    vim.defer_fn(vim.lsp.buf.definition, user_config.delay)
-    vim.defer_fn(function() vim.cmd("norm! zz") end, user_config.delay)
-  end
-end
 
+    -- Step B: Open the specific buffer and position from the LSP result
+    -- vim.lsp.util.jump_to_location(location)
+    vim.lsp.util.show_document(location, "utf-8")
+    vim.cmd("norm! zz")
+  end)
+end
 function M.setup(user_opts)
   -- Merge user configuration with defaults
   local cfg = vim.tbl_deep_extend("force", config.default_config, user_opts or {})
@@ -44,7 +39,7 @@ function M.setup(user_opts)
   -- Set up key mappings
   for map_dir, key_dir in pairs(cfg.mappings) do
     vim.keymap.set("n", cfg.prefix .. key_dir, function()
-      goto_definition_in_direction(map_dir, cfg)
+      goto_definition_in_direction(map_dir)
     end, {
       desc = config.descriptions[map_dir],
       noremap = true,
